@@ -78,6 +78,20 @@ contract RebaseToken is ERC20 {
     }
 
     /**
+     * @notice Burn the user's tokens when they withdraw from the vault
+     * @param _from The address to burn the tokens from
+     * @dev This function burns the tokens from the user and updates their interest rate
+     * @param _amount The amount of tokens to burn
+     */
+    function burn(address _from, uint256 _amount) external {
+        if (_amount == type(uint256).max) {
+            _amount = balanceOf(_from);
+        }
+        _mintAccruedInterest(_from);
+        _burn(_from, _amount);
+    }
+
+    /**
      * calaculate the balance for the user including the interest that has accrued since the last update
      * (principal balance) + some interest that has accrued since the last update
      * @param _user The address of the user
@@ -113,14 +127,22 @@ contract RebaseToken is ERC20 {
         linearInterest = PRECISION_FACTOR + (s_userInterestRate[_user] * timeElapsed);
     }
 
+    /**
+     * @notice Update the user's interest rate and mint them the interest that has accrued since the last they interacted with the contract(eg mint,burn,tansfer)
+     * @param _user The address of the user
+     */
     function _mintAccruedInterest(address _user) internal {
         // (1) find their current balance of rebase tokens that have been minted to the user -> principal balance
+        uint256 previousPrincipleBalance = super.balanceOf(_user);
         // (2) calculate their current balance including any interest -> balanceOf
+        uint256 currentBalance = balanceOf(_user);
         // (3) mint the difference between the current balance and the balance including interest
-        // call _mint to mint the tokens to user
+        uint256 balanceIncrease = currentBalance - previousPrincipleBalance;
         // set the users last updated timestamp
-
         s_userLastUpdatedTimestamp[_user] = block.timestamp;
+        // call _mint to mint the tokens to user
+        _mint(_user, balanceIncrease);
+        // We are emitting an event in _mint function hence no need to emit an event here
     }
 
     ////////////////////////////////////////
