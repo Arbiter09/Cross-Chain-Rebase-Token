@@ -65,6 +65,14 @@ contract RebaseToken is ERC20 {
     }
 
     /**
+     * @notice Get the principal balance of the user. This is the number of tokens that have been minted to the user, not incling the interest that has accrued since the last update
+     * @return The current interest rate
+     */
+    function principalBalanceOf(address _user) external view returns (uint256) {
+        return super.balanceOf(_user);
+    }
+
+    /**
      * @notice Mint the user tokens when they deposit into the vault
      * @param _to The address to mint the tokens to
      * @dev This function mints the tokens to the user and updates their interest rate
@@ -102,6 +110,53 @@ contract RebaseToken is ERC20 {
         // multiply the principle balance by the interest rate that has accumulated since the user deposited
         return (super.balanceOf(_user) * _calculateUserAccumulatedInterestSinceLastUpdate(_user)) / PRECISION_FACTOR;
         // divide by the precision factor to get the actual balance of the user
+    }
+
+    /**
+     * @notice Transfer tokens from one address to another
+     * @param _recipient The address to transfer the tokens to
+     * @param _amount The amount of tokens to transfer
+     * @dev This function mints the interest that has accrued since the last update
+     * @dev It also updates the user's interest rate if they are transferring to a new address
+     * @dev If the user is transferring their entire balance, the amount will be set to the balance of the user
+     * @dev The interest rate for the recipient will be set to the interest rate of the sender
+     * @return true if the transfer was successful
+     */
+    function transfer(address _recipient, uint256 _amount) public virtual override returns (bool) {
+        _mintAccruedInterest(msg.sender);
+        _mintAccruedInterest(_recipient);
+        if (_amount == type(uint256).max) {
+            // Check if the user wants to send their entire balance
+            _amount = balanceOf(msg.sender);
+        }
+        if (balanceOf(_recipient) == 0) {
+            s_userInterestRate[_recipient] = s_userInterestRate[msg.sender];
+        }
+        return super.transfer(_recipient, _amount);
+    }
+
+    /**
+     * @notice Transfer tokens from one address to another
+     * @param _sender The address to transfer the tokens from
+     * @param _recipient The address to transfer the tokens to
+     * @param _amount The amount of tokens to transfer
+     * @dev This function mints the interest that has accrued since the last update
+     * @dev It also updates the user's interest rate if they are transferring to a new address
+     * @dev If the user is transferring their entire balance, the amount will be set to the balance of the user
+     * @dev The interest rate for the recipient will be set to the interest rate of the sender
+     * @return true if the transfer was successful
+     */
+    function transferFrom(address _sender, address _recipient, uint256 _amount) public override returns (bool) {
+        _mintAccruedInterest(_sender);
+        _mintAccruedInterest(_recipient);
+        if (_amount == type(uint256).max) {
+            // Check if the user wants to send their entire balance
+            _amount = balanceOf(msg.sender);
+        }
+        if (balanceOf(_recipient) == 0) {
+            s_userInterestRate[_recipient] = s_userInterestRate[_sender];
+        }
+        return super.transferFrom(_sender, _recipient, _amount);
     }
 
     /**
@@ -156,5 +211,13 @@ contract RebaseToken is ERC20 {
      */
     function getUserInterestRate(address _user) external view returns (uint256) {
         return s_userInterestRate[_user];
+    }
+
+    /**
+     * @notice Get the interest rate for the contract. Any future depositors will receive this interest rate
+     * @return The current interest rate
+     */
+    function getInterestRate() external view returns (uint256) {
+        return s_interestRate;
     }
 }
